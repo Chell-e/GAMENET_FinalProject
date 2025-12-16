@@ -39,9 +39,6 @@ public class ChatSystem : NetworkBehaviour
 
         if (Input.GetKeyDown(KeyCode.Return) && !string.IsNullOrWhiteSpace(inputField.text))
         {
-            var pc = GetComponent<PlayerController>();
-            //string senderName = pc.playerName;
-
             CmdSendMessage(inputField.text);
             inputField.text = "";
         }
