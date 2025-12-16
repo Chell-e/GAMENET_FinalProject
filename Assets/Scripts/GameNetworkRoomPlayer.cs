@@ -1,5 +1,10 @@
 using UnityEngine;
 using Mirror;
+using UnityEngine.UI;
+using TMPro;
+using System;
+using System.Linq;
+using System.Collections.Generic;
 
 /*
 	Documentation: https://mirror-networking.gitbook.io/docs/components/network-room-player
@@ -14,6 +19,31 @@ using Mirror;
 /// </summary>
 public class GameNetworkRoomPlayer : NetworkRoomPlayer
 {
+    [SerializeField]
+    Button readyButton;
+
+    [SerializeField]
+    Button startButton;
+
+    [SerializeField]
+    GameObject canvasUI;
+
+    [SerializeField]
+    TMPro.TMP_InputField nameInputField;
+
+    [SerializeField]
+    Transform playerList;
+
+    [SerializeField]
+    GameObject playerStatePrefab;
+
+    [SyncVar]
+    public string playerOnlineName;
+
+    public Action<string> OnChangeName;
+    public Action<bool> OnChangeReady;
+    public Action OnDisconnected;
+
     #region Start & Stop Callbacks
 
     /// <summary>
@@ -21,7 +51,9 @@ public class GameNetworkRoomPlayer : NetworkRoomPlayer
     /// <para>This could be triggered by NetworkServer.Listen() for objects in the scene, or by NetworkServer.Spawn() for objects that are dynamically created.</para>
     /// <para>This will be called for objects on a "host" as well as for object on a dedicated server.</para>
     /// </summary>
-    public override void OnStartServer() { }
+    public override void OnStartServer()
+    {
+    }
 
     /// <summary>
     /// Invoked on the server when the object is unspawned
@@ -33,13 +65,18 @@ public class GameNetworkRoomPlayer : NetworkRoomPlayer
     /// Called on every NetworkBehaviour when it is activated on a client.
     /// <para>Objects on the host have this function called, as there is a local client on the host. The values of SyncVars on object are guaranteed to be initialized correctly with the latest state from the server when this function is called on the client.</para>
     /// </summary>
-    public override void OnStartClient() { }
+    public override void OnStartClient()
+    {
+    }
 
     /// <summary>
     /// This is invoked on clients when the server has caused this object to be destroyed.
     /// <para>This can be used as a hook to invoke effects or do client specific cleanup.</para>
     /// </summary>
-    public override void OnStopClient() { }
+    public override void OnStopClient()
+    {
+        OnDisconnected?.Invoke();
+    }
 
     /// <summary>
     /// Called when the local player object has been set up.
@@ -52,7 +89,17 @@ public class GameNetworkRoomPlayer : NetworkRoomPlayer
     /// <para>This is called after <see cref="OnStartServer">OnStartServer</see> and before <see cref="OnStartClient">OnStartClient.</see></para>
     /// <para>When <see cref="NetworkIdentity.AssignClientAuthority"/> is called on the server, this will be called on the client that owns the object. When an object is spawned with <see cref="NetworkServer.Spawn">NetworkServer.Spawn</see> with a NetworkConnectionToClient parameter included, this will be called on the client that owns the object.</para>
     /// </summary>
-    public override void OnStartAuthority() { }
+    public override void OnStartAuthority()
+    {
+        canvasUI.SetActive(true);
+
+        nameInputField.onValueChanged.AddListener(CmdSetName);
+
+        if (isServer)
+        {
+            startButton.gameObject.SetActive(true);
+        }
+    }
 
     /// <summary>
     /// This is invoked on behaviours when authority is removed.
@@ -68,12 +115,18 @@ public class GameNetworkRoomPlayer : NetworkRoomPlayer
     /// This is a hook that is invoked on all player objects when entering the room.
     /// <para>Note: isLocalPlayer is not guaranteed to be set until OnStartLocalPlayer is called.</para>
     /// </summary>
-    public override void OnClientEnterRoom() { }
+    public override void OnClientEnterRoom()
+    {
+        UpdatePlayerList(GameNetworkRoomManager.singleton.roomSlots);
+    }
 
     /// <summary>
     /// This is a hook that is invoked on all player objects when exiting the room.
     /// </summary>
-    public override void OnClientExitRoom() { }
+    public override void OnClientExitRoom()
+    {
+        UpdatePlayerList(GameNetworkRoomManager.singleton.roomSlots);
+    }
 
     #endregion
 
@@ -92,7 +145,10 @@ public class GameNetworkRoomPlayer : NetworkRoomPlayer
     /// </summary>
     /// <param name="oldReadyState">The old readyState value</param>
     /// <param name="newReadyState">The new readyState value</param>
-    public override void ReadyStateChanged(bool oldReadyState, bool newReadyState) { }
+    public override void ReadyStateChanged(bool oldReadyState, bool newReadyState)
+    {
+        OnChangeReady?.Invoke(newReadyState);
+    }
 
     #endregion
 
@@ -101,6 +157,65 @@ public class GameNetworkRoomPlayer : NetworkRoomPlayer
     public override void OnGUI()
     {
         base.OnGUI();
+    }
+
+    public void ToggleReady()
+    {
+        bool isReady = !readyToBegin;
+        CmdChangeReadyState(isReady);
+
+        readyButton.GetComponentInChildren<TextMeshProUGUI>().text = isReady ? "Cancel" : "Ready";
+    }
+
+    public void StartGame()
+    {
+        if (!isServer) return;
+
+        GameNetworkRoomManager.singleton.ServerChangeScene(GameNetworkRoomManager.singleton.GameplayScene);
+    }
+
+    [ClientRpc]
+    public void RpcDisableCanvas()
+    {
+        canvasUI.SetActive(false);
+    }
+
+    public void SetStartGameInteractable(bool isInteractable)
+    {
+        if (isServer)
+        {
+            startButton.interactable = isInteractable;
+        }
+    }
+
+    [Command]
+    public void CmdSetName(string playerName)
+    {
+        playerOnlineName = playerName;
+        RpcSetName(playerOnlineName);
+    }
+
+    [ClientRpc]
+    public void RpcSetName(string playerName)
+    {
+        OnChangeName?.Invoke(playerName);
+    }
+
+    public void UpdatePlayerList(HashSet<NetworkRoomPlayer> players)
+    {
+        List<GameNetworkRoomPlayer> roomPlayerList = playerList.GetComponentsInChildren<PlayerReadyState>()
+            .Select(readyState => readyState.RoomPlayer).ToList();
+
+        foreach (NetworkRoomPlayer player in players.Where(roomPlayer => !roomPlayerList.Contains(roomPlayer)))
+        {
+            GameObject obj = Instantiate(playerStatePrefab, playerList);
+            obj.GetComponent<PlayerReadyState>().SetRoomPlayer((GameNetworkRoomPlayer)player);
+        }
+
+        foreach (Transform t in playerList)
+        {
+            t.SetSiblingIndex(t.GetComponent<PlayerReadyState>().RoomPlayer.index);
+        }
     }
 
     #endregion

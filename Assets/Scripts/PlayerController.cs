@@ -35,10 +35,12 @@ public class PlayerController : NetworkBehaviour
         if (!isLocalPlayer) return;
 
         Vector2 movement = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-
-        rb.MovePosition(rb.position + movement * 20f * Time.deltaTime);
+        Vector2 targetPos = rb.position + movement * 20f * Time.deltaTime;
         
-        //float x = Mathf.Clamp(transform.position.x, -8.5f, 8.5f);
-        //transform.position = new Vector3(x, transform.position.y, transform.position.z);
+        float x = Mathf.Clamp(targetPos.x, -6.8f, 6.8f);
+        float y = Mathf.Clamp(targetPos.y, -4.3f, 2.6f);
+
+        targetPos = new Vector2(x, y);
+        rb.MovePosition(targetPos);
     }
 }

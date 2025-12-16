@@ -85,6 +85,9 @@ public class GameNetworkRoomManager : NetworkRoomManager
     /// <returns>A new GamePlayer object.</returns>
     public override GameObject OnRoomServerCreateGamePlayer(NetworkConnectionToClient conn, GameObject roomPlayer)
     {
+        GameNetworkRoomPlayer gameNetworkRoomPlayer = roomPlayer.GetComponent<GameNetworkRoomPlayer>();
+        gameNetworkRoomPlayer.RpcDisableCanvas();
+
         return base.OnRoomServerCreateGamePlayer(conn, roomPlayer);
     }
 
@@ -109,7 +112,13 @@ public class GameNetworkRoomManager : NetworkRoomManager
     /// <returns>False to not allow this player to replace the room player.</returns>
     public override bool OnRoomServerSceneLoadedForPlayer(NetworkConnectionToClient conn, GameObject roomPlayer, GameObject gamePlayer)
     {
-        return base.OnRoomServerSceneLoadedForPlayer(conn, roomPlayer, gamePlayer);
+        var room = roomPlayer.GetComponent<GameNetworkRoomPlayer>();
+        var chat = gamePlayer.GetComponent<ChatSystem>();
+
+        chat.playerName = room.playerOnlineName;
+
+        return true;
+        //return base.OnRoomServerSceneLoadedForPlayer(conn, roomPlayer, gamePlayer);
     }
 
     /// <summary>
@@ -126,7 +135,10 @@ public class GameNetworkRoomManager : NetworkRoomManager
     /// </summary>
     public override void OnRoomServerPlayersReady()
     {
-        base.OnRoomServerPlayersReady();
+        NetworkRoomPlayer host = roomSlots.SingleOrDefault(roomPlayer => roomPlayer.isLocalPlayer && roomPlayer.isServer);
+        host?.GetComponent<GameNetworkRoomPlayer>().SetStartGameInteractable(true);
+
+        //base.OnRoomServerPlayersReady();
     }
 
     /// <summary>
@@ -135,7 +147,8 @@ public class GameNetworkRoomManager : NetworkRoomManager
     /// </summary>
     public override void OnRoomServerPlayersNotReady()
     {
-
+        NetworkRoomPlayer host = roomSlots.SingleOrDefault(roomPlayer => roomPlayer.isLocalPlayer && roomPlayer.isServer);
+        host?.GetComponent<GameNetworkRoomPlayer>().SetStartGameInteractable(false);
     }
 
     #endregion

@@ -37,8 +37,11 @@ public class ChatSystem : NetworkBehaviour
     {
         if (!isLocalPlayer) return;
 
-        if (Input.GetKeyDown(KeyCode.Return))
+        if (Input.GetKeyDown(KeyCode.Return) && !string.IsNullOrWhiteSpace(inputField.text))
         {
+            var pc = GetComponent<PlayerController>();
+            //string senderName = pc.playerName;
+
             CmdSendMessage(inputField.text);
             inputField.text = "";
         }
@@ -47,7 +50,7 @@ public class ChatSystem : NetworkBehaviour
     [Command]
     private void CmdSendMessage(string message)
     {
-        RpcSendMessage($"\n{message}");
+        RpcSendMessage($"\n {playerName}: {message}");
     }
 
     [ClientRpc]
